@@ -1,0 +1,27 @@
+# SEÇÃO PRINCIPAL: Configurações Gerais do NEAT
+[NEAT]
+pop_size = 50  # Quantidade de indivíduos (redes) em cada geração
+fitness_threshold = 0.9  # Limite de fitness para considerar a evolução concluída
+
+# SEÇÃO DO GENOMA: Define as características das redes neurais
+[DefaultGenome]
+num_inputs = 16384  # Número de neurônios na camada de entrada (128x128 pixels)
+num_outputs = 10  # Número de neurônios na saída (10 classes: 0 a 9)
+num_hidden = 0  # Inicialmente, não há camadas ocultas, pois a evolução criará novas conexões e nós automaticamente
+activation_default = sigmoid  # Função de ativação usada nos neurônios (sigmóide)
+
+# SEÇÃO DE REPRODUÇÃO: Define como as redes se reproduzem ao longo das gerações
+[DefaultReproduction]
+elitism = 2  # Número de melhores indivíduos que são diretamente passados para a próxima geração sem modificação
+survival_threshold = 0.2  # Apenas os melhores 20% dos indivíduos sobrevivem para a próxima geração
+
+# SEÇÃO DE MUTAÇÃO: Define a frequência e o tipo de mutações na rede
+[DefaultMutation]
+node_add_prob = 0.2  # Probabilidade de adicionar um novo neurônio em uma rede
+node_delete_prob = 0.2  # Probabilidade de remover um neurônio existente
+conn_add_prob = 0.5  # Probabilidade de adicionar uma nova conexão entre neurônios
+conn_delete_prob = 0.2  # Probabilidade de remover uma conexão existente
+
+# SEÇÃO DE ESPÉCIES: Define como os indivíduos são agrupados em espécies (evita estagnação na evolução)
+[DefaultSpeciesSet]
+compatibility_threshold = 3.0  # Limite de distância genética para separar redes em espécies diferentes
