@@ -1,4 +1,16 @@
-import torch
-print("CUDA está disponível:", torch.cuda.is_available())
-print("Número de GPUs:", torch.cuda.device_count())
-print("Nome da GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Nenhuma GPU detectada")
+import tensorflow as tf
+from tensorflow.python.client import device_lib
+
+print("TensorFlow version:", tf.__version__)
+print("CUDA support built:", tf.test.is_built_with_cuda())
+
+print("Available devices:")
+print(device_lib.list_local_devices())
+
+print("Physical GPUs:", tf.config.list_physical_devices('GPU'))
+
+# Updated code to get cuDNN version
+cuda_version = tf.sysconfig.get_build_info().get('cuda_version', 'Unknown')
+cudnn_version = tf.sysconfig.get_build_info().get('cudnn_version', 'Unknown')
+print("Updated CUDA version:", cuda_version)
+print("Updated cuDNN version:", cudnn_version)
