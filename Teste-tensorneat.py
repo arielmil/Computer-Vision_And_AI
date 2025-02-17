@@ -4,6 +4,17 @@ from tensorneat.algorithm.neat import NEAT
 from tensorneat.genome import DefaultGenome, BiasNode
 from tensorneat.problem.rl import BraxEnv
 from tensorneat.common import ACT, AGG
+import jax
+import jax.numpy as jnp
+
+# Criando uma matriz grande para testar
+x = jnp.ones((1000, 1000))
+
+# Verifica onde está rodando
+print(x.device())  # Deve retornar algo como: gpu:0
+
+jax.config.update("jax_platform_name", "cuda")  # ou "gpu"
+
 
 # Define the pipeline
 pipeline = Pipeline(
