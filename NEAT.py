@@ -49,9 +49,18 @@ class SupervisedFuncFit(FuncFit):
         for i in range(0, num_samples, self.batch_size):
             batch_X = self.data_inputs[i : i + self.batch_size]
             batch_y = self.data_outputs[i : i + self.batch_size]
+            
+            print(f"🔍 batch_X.shape = {batch_X.shape}, esperado = ({self.batch_size}, {self.input_shape[1]})") # Deve ser (128, 12600)
+            print(f"📌 Shape de um único x dentro de batch_X: {batch_X[0].shape}")  # Deve ser (12600,)
+
+            for x in batch_X:
+                print(f"📌 Shape real de x enviado para act_func: {x.shape}")
+                print(f"📌 Shape após reshape: {x.reshape(1, -1).shape}")
+                resultado = act_func(state, x.reshape(1, -1), params)  # Aqui testamos antes de rodar o vmap
+                print(f"📌 Saída esperada de act_func: {resultado.shape}")
 
             # 🔹 Usa `act_func` corretamente dentro do NEAT para prever as saídas
-            predictions = vmap(lambda x: act_func(state, x, params))(batch_X)
+            predictions = vmap(lambda x: act_func(state, x.reshape(1, -1), params))(batch_X)
 
             # 🔹 Calcula Cross-Entropy Loss no batch
             batch_loss = -jnp.mean(jnp.sum(batch_y * jnp.log(predictions + 1e-9), axis=1))
