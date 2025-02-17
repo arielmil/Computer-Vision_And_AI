@@ -4,6 +4,7 @@ import pickle
 from torchvision import transforms
 from PIL import Image
 import kagglehub
+import configparser
 
 def convert_to_utf8(file_path):
     try:
@@ -71,7 +72,8 @@ def run_neat():
         convert_to_utf8(config_path)
 
         try:
-            config = tn.parse_configuration(config_path)
+            config = configparser.ConfigParser()
+            config.read(config_path)
             eval_instance_count = config.getint('TENSORNEAT', 'eval_instance_count', fallback=1)
         except Exception as e:
             print(f"❌ Erro ao carregar a configuração do TensorNEAT: {e}")
@@ -84,7 +86,7 @@ def run_neat():
             print(f"⚠️ Aviso: Não foi possível criar o diretório de backup: {e}")
 
         try:
-            trainer = tn.EvolutionEngine(config, eval_genomes, backup_dir_path, eval_instance_count=eval_instance_count)
+            trainer = tn.NEATEngine(config, eval_genomes, backup_dir_path, eval_instance_count=eval_instance_count)
         except Exception as e:
             print(f"❌ Erro ao criar a engine de evolução: {e}")
             return None
