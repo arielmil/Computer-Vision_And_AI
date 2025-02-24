@@ -2,7 +2,7 @@ import kagglehub
 import os
 import numpy as np
 
-path = r'/home/mileguir/.cache/kagglehub/datasets/olafkrastovski/handwritten-digits-0-9/versions/2'
+path = os.path.expanduser('~/.cache/kagglehub/datasets/olafkrastovski/handwritten-digits-0-9/versions/2')
 
 if not os.path.exists(path):
     print("Downloading dataset...")
