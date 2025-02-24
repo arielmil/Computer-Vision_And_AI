@@ -34,6 +34,11 @@ class Genome:
             node_id = node_eval[0]
             node_order.append(node_id)
         
+        # Por fim, verifica se todos os nós de saída estão na lista node_order
+        for output in net.output_nodes:
+            if output not in node_order:
+                node_order.append(output)
+        
         # Por fim, retornamos a lista completa (node_order),
         # junto com os input_nodes e output_nodes originais:
         return node_order, net.input_nodes, net.output_nodes
@@ -49,6 +54,15 @@ class Genome:
         #   in_nodes    = IDs de nós de entrada
         #   out_nodes   = IDs de nós de saída
         node_order, in_nodes, out_nodes = self.get_topological_info()
+
+        # Após extrair as informações de topologia, garante que todos os nós nas conexões estão presentes na lista node_order
+        for cg in self.genome.connections.values():
+            if cg.enabled:
+                in_node, out_node = cg.key
+                if in_node not in node_order:
+                    node_order.append(in_node)
+                if out_node not in node_order:
+                    node_order.append(out_node)
 
         # Vamos referenciá-las localmente para passar ao construtor da classe interna:
         genome = self.genome
@@ -116,6 +130,8 @@ class Genome:
                 #     lista de (nó de origem, peso).
                 adjacency = {n_id: [] for n_id in _self.node_order}
                 for (i_node, o_node, w) in _self.connections:
+                    if i_node not in _self.node_id_to_idx or o_node not in _self.node_id_to_idx:
+                        continue
                     adjacency[o_node].append((i_node, w))
 
                 # (3) Processar os nós (ocultos + saída) na ordem topológica
