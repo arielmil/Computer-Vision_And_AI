@@ -2,7 +2,7 @@
 
 # 1: 
 
-    - Reduzir a qualidade da foto para ser uma X por Y para ter menos nós de entrada.
+    - Reduzir a qualidade da foto para ser uma X = 20 por Y = 20 para ter menos nós de entrada. (20 x 20)
 
 # 2:
 
