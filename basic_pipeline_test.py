@@ -133,13 +133,11 @@ problem = HandwrittenDigitsProblem(X, Y, batch_size=4)
 
 # Configura o genoma usando configurações similares às do arquivo NEAT.py, mas adaptado para este problema
 # O genoma define a estrutura da rede neural dos indivíduos na população
-
-# Alteramos max_nodes para um valor maior ou igual a 12610 (número inicial de nós = num_inputs + num_outputs)
 genome = DefaultGenome(
     num_inputs=12600,  # Número de pixels em cada imagem
     num_outputs=10,    # Número de classes (dígitos de 0 a 9)
-    max_nodes=14000,   # Alterado de 50 para 14000 para acomodar os nós iniciais
-    max_conns=140000,  # Alterado de 100 para 140000 para acomodar o número inicial de conexões
+    max_nodes=50,      # Número máximo de nós permitidos
+    max_conns=100,     # Número máximo de conexões permitidas
     mutation=DefaultMutation(),
     crossover=DefaultCrossover(),
     distance=DefaultDistance(),

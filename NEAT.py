@@ -3,19 +3,21 @@ import kagglehub
 import numpy as np
 import pickle
 from PIL import Image
+from typing import Union, List, Tuple
+
 from sklearn.model_selection import train_test_split
+
 from tensorneat.problem.supervised import SupervisedFuncFit
 from tensorneat.pipeline import Pipeline
 from tensorneat.algorithm import NEAT
-from tensorneat.algorithm import NEAT
-from tensorneat.genome import DefaultGenome
+from tensorneat.genome import DefaultGenome, DefaultMutation, DefaultCrossover, DefaultDistance, DefaultConn
 from tensorneat.common import ACT, AGG
 from tensorneat.genome.gene.node.bias import BiasNode
-from typing import Union, List, Tuple
-from jax import numpy as jnp, vmap
-import jax.numpy as jnp
-import numpy as np
 from tensorneat.problem.func_fit import FuncFit
+
+import jax
+from jax import numpy as jnp, vmap, random
+import numpy as np
 
 class SupervisedFuncFit(FuncFit):
     def __init__(
@@ -42,22 +44,99 @@ class SupervisedFuncFit(FuncFit):
     def evaluate(self, state, randkey, act_func, params):
         """
         Calcula a função de fitness usando Cross-Entropy Loss em batches.
+        
+        Parâmetros:
+            - state: Estado atual do algoritmo (necessário para o TensorNEAT)
+            - randkey: Chave aleatória do JAX (necessário para inicializações ou mutações)
+            - act_func: Função de ativação da rede neural
+            - params: Parâmetros da rede (pesos e conexões)
+        
+        Retorna:
+            - Fitness (negativo da perda média)
         """
+
+        # Se state for None, definir para array vazio para evitar erros
+        if state is None:
+            state = jnp.array([])
+
+        # Definindo função auxiliar para extrair a saída final
+        def get_final_output(raw_output):
+            if isinstance(raw_output, (tuple, list)):
+                # Se for uma tupla com 4 ou mais elementos, assumimos que o segundo é a saída final
+                if len(raw_output) >= 4:
+                    return raw_output[1]
+                else:
+                    return raw_output[0]
+            return raw_output
+
         num_samples = self.data_inputs.shape[0]
+        num_batches = max(1, num_samples // self.batch_size)  # Evita divisão por zero
         total_loss = 0.0
 
-        for i in range(0, num_samples, self.batch_size):
-            batch_X = self.data_inputs[i : i + self.batch_size]
-            batch_y = self.data_outputs[i : i + self.batch_size]
+        # Processamos os dados em batches
+        for batch_idx in range(num_batches):
+            batch_start = batch_idx * self.batch_size
+            batch_end = min(batch_start + self.batch_size, num_samples)
 
-            # 🔹 Usa `act_func` corretamente dentro do NEAT para prever as saídas
-            predictions = vmap(lambda x: act_func(state, x, params))(batch_X)
+            batch_X = self.data_inputs[batch_start:batch_end]
+            batch_y = self.data_outputs[batch_start:batch_end]
 
-            # 🔹 Calcula Cross-Entropy Loss no batch
+            # Gerando variação randômica baseada no randkey (pode ser usada para dropout ou noise nos dados)
+            subkey, _ = jax.random.split(randkey)
+            perturbed_X = batch_X + 0.01 * jax.random.normal(subkey, batch_X.shape)  # Pequena perturbação (opcional)
+            
+            print(f"Printando antes do vmap e antes de perturbed_x passar por jnp.reshape:")
+            print(f"🚨 Dentro de evaluate - batch_X.shape: {batch_X.shape}")
+            print(f"🚨 Dentro de evaluate - esperado: ({self.batch_size}, 12600)")
+            print(f"🚨 Dentro de evaluate - act_func antes: {act_func}")
+            print(f"🚨 Dentro de evaluate - state.shape: {state.shape if isinstance(state, jnp.ndarray) else 'None'}")
+
+            print(f"📌 Shape antes do vmap: {perturbed_X.shape}")
+            print(f"Printando antes do vmap e depois de perturbed_x passar por jnp.reshape:")
+            print(f"🚨 Dentro de evaluate - batch_X.shape: {batch_X.shape}")
+            print(f"🚨 Dentro de evaluate - esperado: ({self.batch_size}, 12600)")
+            print(f"🚨 Dentro de evaluate - act_func antes: {act_func}")
+            print(f"🚨 Dentro de evaluate - state.shape: {state.shape if isinstance(state, jnp.ndarray) else 'None'}")
+            
+            print(f"📌 Antes de reshape - perturbed_X.shape: {perturbed_X.shape}")
+            if len(perturbed_X.shape) > 2:
+                perturbed_X = perturbed_X.reshape(perturbed_X.shape[0], -1)
+            else:
+                perturbed_X = perturbed_X.reshape(self.batch_size, -1)
+            print(f"📌 Depois de reshape - perturbed_X.shape: {perturbed_X.shape}")
+
+            assert perturbed_X.shape[1] == 12600, f"Formato incorreto: {perturbed_X.shape}"
+            assert batch_X.shape[1] == 12600, f"Formato incorreto: {batch_X.shape}"
+            
+            print(f"📌 Shape antes do vmap: {perturbed_X.shape}")
+            for i, x in enumerate(perturbed_X):
+                print(f"🚨 Teste direto - Entrada {i} (shape): {x.shape}")
+                if x.shape != (12600,):
+                    print(f"❌❌❌ ERRO: Entrada {i} tem shape inválido: {x.shape} (esperado: (12600,)) ❌❌❌")
+                    exit(1)
+            
+            print(f"Perturbed_X.shape: {perturbed_X.shape}")
+            print(f"Perturbed_X[0].shape: {perturbed_X[0].shape}")
+            print(f"Params: {params}")
+
+            # Aplicar act_func para cada entrada e empilhar as saídas finais
+            predictions_list = []
+            for i, x in enumerate(perturbed_X):
+                raw_output = act_func(state, x[None, :], params)
+                print(f"🚨 Debug: Raw output for entrada {i}: {raw_output} (type: {type(raw_output)})")
+                if isinstance(raw_output, (tuple, list)):
+                    print(f"🚨 Debug: Length of raw output for entrada {i}: {len(raw_output)}")
+                out = get_final_output(raw_output)
+                predictions_list.append(out)
+            
+            predictions = jnp.stack(predictions_list)
+            
+            print(f"📌 Shape após vmap: {predictions.shape}")
+            
             batch_loss = -jnp.mean(jnp.sum(batch_y * jnp.log(predictions + 1e-9), axis=1))
             total_loss += batch_loss
-
-        return -total_loss / (num_samples / self.batch_size)  # 🔹 Fitness = -Loss
+        
+        return -total_loss / num_batches
 
     @property
     def inputs(self):
@@ -69,16 +148,19 @@ class SupervisedFuncFit(FuncFit):
 
     @property
     def input_shape(self):
-        return self.data_inputs.shape  # 🔹 Retorna o shape (n_amostras, n_features)
+        """
+        Retorna a forma esperada da entrada.
+        O TensorNEAT espera um formato (features,).
+        """
+        return (self.data_inputs.shape[1],)  # Retorna o número de features
 
     @property
     def output_shape(self):
         return self.data_outputs.shape  # 🔹 Retorna o shape dos labels (one-hot encoding)
 
-def load_images_from_folder(folder_path, use_percentage=1.0):
+def load_images_from_folder(folder_path, everything_at_once=False):
     """
-    Carrega imagens do dataset, normaliza e converte para um formato adequado para TensorNEAT.
-    use_percentage: Determina a porcentagem das imagens a serem usadas.
+    Carrega imagens do dataset em batches para evitar consumo excessivo de memória.
     """
     data, labels = [], []
     
@@ -86,17 +168,29 @@ def load_images_from_folder(folder_path, use_percentage=1.0):
         label_path = os.path.join(folder_path, label)
         if os.path.isdir(label_path):
             images = os.listdir(label_path)
-            num_images = int(len(images) * use_percentage)
+            num_images = int(len(images))
             for image_file in images[:num_images]:
                 img_path = os.path.join(label_path, image_file)
-                img = Image.open(img_path).convert('L')  # Converter para escala de cinza
-                img = img.resize((90, 140))  # Ajustar para o tamanho correto (90x140)
-                img = (np.array(img) / 255.0).flatten()  # Normalizar e achatar
+                img = Image.open(img_path).convert('L')  # Escala de cinza
+                img = img.resize((90, 140))  # Redimensiona
+                img = (np.array(img) / 255.0).flatten()  # Normaliza
+                
                 data.append(img)
                 labels.append(int(label))
-    
-    return np.array(data), np.array(labels)
 
+                if not everything_at_once:
+                    # 🔹 Se a memória estiver alta, libere os dados periodicamente
+                    if len(data) % 5000 == 0:
+                        print(f"🔹 Carregadas {len(data)} imagens, liberando memória...")
+                        yield np.array(data), np.array(labels)
+                        data, labels = [], []
+
+    if everything_at_once:
+        # 🔹 Retorna todos os dados de uma só vez
+        yield np.array(data), np.array(labels)
+    else:
+        # 🔹 Retorna o restante dos dados
+        yield np.array(data), np.array(labels)
 
 def softmax(x):
     """Função de ativação Softmax usando JAX."""
@@ -104,7 +198,7 @@ def softmax(x):
     return exp_x / jnp.sum(exp_x)
 
 # Caminho para o dataset
-path = r'C:/Users/mileguir/.cache/kagglehub/datasets/olafkrastovski/handwritten-digits-0-9/versions/2'
+path = r'/home/mileguir/.cache/kagglehub/datasets/olafkrastovski/handwritten-digits-0-9/versions/2'
 if not os.path.exists(path):
     print(f"Dataset não encontrado em {path}. Baixando...")
     path = kagglehub.dataset_download("olafkrastovski/handwritten-digits-0-9")
@@ -112,8 +206,14 @@ else:
     print(f"✅ Dataset encontrado em {path}.")
 
 # Carregar o dataset
-X_data, y_data = load_images_from_folder(path)
-print(f"✅ Dataset carregado com {len(X_data)} amostras!")
+X_data, y_data = [], []
+for X_part, y_part in load_images_from_folder(path, everything_at_once=False):
+    X_data.append(X_part)
+    y_data.append(y_part)
+
+# 🔹 Concatena os lotes de forma eficiente
+X_data = np.concatenate(X_data, axis=0)
+y_data = np.concatenate(y_data, axis=0)
 
 # Converter labels para one-hot encoding
 y_data = np.eye(10)[y_data]
@@ -123,23 +223,27 @@ X_train, X_test, y_train, y_test = train_test_split(X_data, y_data, test_size=0.
 print(f"🔹 Treino: {len(X_train)} amostras | Teste: {len(X_test)} amostras")
 
 # Criar problema de aprendizado supervisionado
-supervised_problem = SupervisedFuncFit(X_train, y_train, batch_size=128)
+supervised_problem = SupervisedFuncFit(X_train, y_train, batch_size=32)
 
-# Configurar a arquitetura da rede neural
+# Configura a arquitetura da rede neural
 genome = DefaultGenome(
     num_inputs=12600,  # Número de pixels da imagem (entrada)
     num_outputs=10,  # 10 classes (0-9)
     max_nodes=13000, # Número máximo de neurônios
     max_conns = 250000, # Número máximo de conexões
+    mutation = DefaultMutation(), # Mutação padrão
+    crossover = DefaultCrossover(), # Crossover padrão
+    distance = DefaultDistance(), # Distância padrão
     init_hidden_layers=(),  # Deixa o NEAT evoluir a estrutura oculta
     node_gene=BiasNode(
         activation_options=[ACT.sigmoid],  # Ativação Sigmoid nos neurônios ocultos
         aggregation_options=[AGG.sum, AGG.product],  # Opções de agregação
     ),
+    conn_gene = DefaultConn(), # Conexão padrão
     output_transform=softmax,  # Softmax na saída para classificação multiclasse
 )
 
-# Configurar o algoritmo NEAT
+# Configura o algoritmo NEAT
 algorithm = NEAT(
     pop_size=200,  # Tamanho da população
     species_size=20,  # Número de espécies na população
