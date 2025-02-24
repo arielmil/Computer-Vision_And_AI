@@ -4,7 +4,6 @@ from dataset_manager import load_images_from_folder
 
 from sklearn.model_selection import train_test_split
 
-from tensorneat.problem.supervised import SupervisedFuncFit
 from tensorneat.pipeline import Pipeline
 from tensorneat.algorithm import NEAT
 from tensorneat.genome import DefaultGenome, DefaultMutation, DefaultCrossover, DefaultDistance, DefaultConn
@@ -31,7 +30,7 @@ X_train, X_test, y_train, y_test = train_test_split(X_data, y_data, test_size=0.
 print(f"Treino: {len(X_train)} amostras | Teste: {len(X_test)} amostras")
 
 # Criar problema de aprendizado supervisionado
-supervised_problem = SupervisedFuncFit(X_train, y_train, batch_size=32)
+supervised_problem = CustomSupervisedFuncFit(X_train, y_train, batch_size=32)
 
 # Configura a arquitetura da rede neural
 genome = DefaultGenome(

@@ -1,6 +1,7 @@
 import kagglehub
 import os
 import numpy as np
+import cv2
 
 path = os.path.expanduser('~/.cache/kagglehub/datasets/olafkrastovski/handwritten-digits-0-9/versions/2')
 
@@ -21,10 +22,19 @@ def load_images_from_folder(folder_path, everything_at_once=False):
         if os.path.isdir(label_path):
             images = os.listdir(label_path)
             num_images = int(len(images))
-            for image_file in range(num_images):
-                image_file = images[image_file]
-                
-                data.append(image_file)
+            for idx in range(num_images):
+                image_file = images[idx]
+                img_path = os.path.join(label_path, image_file)
+
+                # Carrega a imagem como escala de cinza
+                img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+                if img is None:
+                    continue
+
+                # Normaliza e converte o array para float32
+                img = (img.astype(np.float32) / 255.0).flatten()
+
+                data.append(img)
                 labels.append(int(label))
 
                 if not everything_at_once:
@@ -33,12 +43,5 @@ def load_images_from_folder(folder_path, everything_at_once=False):
                         print(f"Carregadas {len(data)} imagens, liberando memória...")
                         yield np.array(data), np.array(labels)
                         data, labels = [], []
-
-    if everything_at_once:
-        # Retorna todos os dados de uma só vez
-        yield np.array(data), np.array(labels)
-    else:
-        # Retorna o restante dos dados
-        yield np.array(data), np.array(labels)
 
 print("Exporting dataset path...")

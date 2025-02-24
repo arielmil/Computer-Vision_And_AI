@@ -3,7 +3,7 @@ from typing import List, Tuple, Union
 import jax
 import jax.numpy as jnp
 
-from tensorneat.problem.func_fit import FuncFit
+from tensorneat.problem.supervised import SupervisedFuncFit
 
 # Definindo função auxiliar para extrair a saída final
 def get_final_output(raw_output):
@@ -26,7 +26,7 @@ def softmax(x):
 
 # Definição da classe do problema supervisionado:
 
-class SupervisedFuncFit(FuncFit):
+class CustomSupervisedFuncFit(SupervisedFuncFit):
     def __init__(
             self, 
             X: Union[List, Tuple, np.ndarray], 
@@ -46,7 +46,7 @@ class SupervisedFuncFit(FuncFit):
         self.data_outputs = jnp.array(y, dtype=jnp.float32)
         self.batch_size = batch_size
 
-        super().__init__(*args, **kwargs)
+        super().__init__(X, y, *args, **kwargs)
 
     # @property é um decorador que permite chamar um método como um atributo por exemplo ao invés de chamar supervised_problem.inputs() você pode chamar supervised_problem.inputs.
     @property
@@ -111,7 +111,8 @@ class SupervisedFuncFit(FuncFit):
             # Aplicar act_func para cada entrada e empilhar as saídas finais
             predictions_list = []
             for i, x in enumerate(perturbed_X):
-                raw_output = act_func(state, x[None, :], params)
+                print(x)
+                raw_output = act_func(state, x, self, params)
                 out = get_final_output(raw_output)
                 predictions_list.append(out)
 
