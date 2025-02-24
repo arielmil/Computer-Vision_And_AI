@@ -48,6 +48,7 @@ class SupervisedFuncFit(FuncFit):
 
         super().__init__(*args, **kwargs)
 
+    # @property é um decorador que permite chamar um método como um atributo por exemplo ao invés de chamar supervised_problem.inputs() você pode chamar supervised_problem.inputs.
     @property
     def inputs(self):
         """
