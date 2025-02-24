@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from neat.nn import FeedForwardNetwork
+import math
 
 class Genome:
     def __init__(self, genome, config):
@@ -22,25 +23,21 @@ class Genome:
 
         Retornamos (node_order, input_nodes, output_nodes).
         """
-        # Cria a rede feedforward (padrão da lib NEAT) com base neste genome e config
         net = FeedForwardNetwork.create(self.genome, self.config)
         
-        # O net.node_evals é processado na ordem topológica, mas primeiramente
-        # guardamos os nós de entrada numa lista:
+        # 1) 'node_order' começa com os nós de entrada do NEAT
         node_order = list(net.input_nodes)
 
-        # Depois percorremos os node_evals para continuar a ordem topológica
+        # 2) Depois adiciona todos os nós processados em net.node_evals (ordem topológica)
         for node_eval in net.node_evals:
             node_id = node_eval[0]
             node_order.append(node_id)
         
-        # Por fim, verifica se todos os nós de saída estão na lista node_order
+        # 3) Garante que todos os nós de saída (separados) estão em node_order
         for output in net.output_nodes:
             if output not in node_order:
                 node_order.append(output)
         
-        # Por fim, retornamos a lista completa (node_order),
-        # junto com os input_nodes e output_nodes originais:
         return node_order, net.input_nodes, net.output_nodes
 
     def decode_genome_to_torch(self):
@@ -49,13 +46,11 @@ class Genome:
         que respeita a topologia definida pelo NEAT.
         """
 
-        # Extrai as informações de topologia:
-        #   node_order  = lista completa em ordem topológica
-        #   in_nodes    = IDs de nós de entrada
-        #   out_nodes   = IDs de nós de saída
+        # Extrai as listas: nós em ordem topológica, nós de entrada, nós de saída
         node_order, in_nodes, out_nodes = self.get_topological_info()
 
-        # Após extrair as informações de topologia, garante que todos os nós nas conexões estão presentes na lista node_order
+        # Certifica que todos os nós em conexões (genome.connections) 
+        # estão no node_order
         for cg in self.genome.connections.values():
             if cg.enabled:
                 in_node, out_node = cg.key
@@ -64,39 +59,34 @@ class Genome:
                 if out_node not in node_order:
                     node_order.append(out_node)
 
-        # Vamos referenciá-las localmente para passar ao construtor da classe interna:
+        # Montamos a classe interna NeatModule (nn.Module)
         genome = self.genome
         config = self.config
         topo_order = node_order
 
         class NeatModule(nn.Module):
             def __init__(_self, genome, config, node_order, in_nodes, out_nodes):
-                """
-                _self => é a instância do NeatModule em si.
-                """
                 super().__init__()
-                
-                # Armazena objetos e listas
+                # Guarda referências
                 _self.genome = genome
                 _self.config = config
                 _self.node_order = node_order
                 _self.input_nodes = in_nodes
                 _self.output_nodes = out_nodes
 
-                # Coletamos as conexões habilitadas (arestas) do genome:
+                # Coleta as conexões habilitadas
                 _self.connections = []
                 for cg in _self.genome.connections.values():
                     if cg.enabled:
-                        in_node, out_node = cg.key
+                        i_node, o_node = cg.key
                         w = cg.weight
-                        # Salva tuplas (nó de entrada, nó de saída, peso)
-                        _self.connections.append((in_node, out_node, w))
+                        _self.connections.append((i_node, o_node, w))
 
-                # Esses valores vêm do config NEAT (ex.: 400 inputs, 10 outputs):
+                # Numero de inputs/outputs do config NEAT
                 _self.num_inputs = _self.config.genome_config.num_inputs
                 _self.num_outputs = _self.config.genome_config.num_outputs
                 
-                # Mapeia (node_id) -> índice no vetor de ativações
+                # Cria mapa: node_id -> índice no vetor de ativações
                 _self.node_id_to_idx = {}
                 for i, n_id in enumerate(_self.node_order):
                     _self.node_id_to_idx[n_id] = i
@@ -104,98 +94,92 @@ class Genome:
             def forward(_self, x):
                 """
                 Executa o forward pass da topologia NEAT:
-                  1. Alimenta os nós de entrada com as colunas de x
-                  2. Propaga para nós ocultos e nós de saída na ordem topológica
-                  3. Retorna um tensor [batch_size, num_outputs]
+                  1. Alimenta nós de entrada
+                  2. Propaga nós ocultos e de saída
+                  3. Retorna tensor [batch_size, num_outputs]
                 """
-                # x tem shape [batch_size, num_features],
-                # onde num_features deve bater com num_inputs configurado no NEAT.
-
                 batch_size = x.shape[0]
                 total_nodes = len(_self.node_order)
 
-                # Cria um tensor de ativações zerado para todos os nós
+                # Cria ativação zero para todos os nós
                 activations = x.new_zeros((batch_size, total_nodes))
 
-                # (1) Alimentar as ativações dos nós de entrada
-                # Em vez de assumir que vão de 0..num_inputs-1,
-                # pegamos o array de IDs de entrada (input_nodes) do NEAT.
+                # (1) Alimentar nós de entrada
                 for col_index, node_id in enumerate(_self.input_nodes):
-                    # Acha o índice no vetor de ativações correspondente a esse node_id
                     idx = _self.node_id_to_idx[node_id]
-                    # Copia a coluna col_index de x para esse índice
                     activations[:, idx] = x[:, col_index]
 
-                # (2) Construir dicionário adjacency: para cada nó destino,
-                #     lista de (nó de origem, peso).
+                # (2) Monta adjacency: para cada nó destino, 
+                #     lista de (nó de origem, peso)
                 adjacency = {n_id: [] for n_id in _self.node_order}
                 for (i_node, o_node, w) in _self.connections:
+                    # Ignora se algum nó não está em node_id_to_idx
                     if i_node not in _self.node_id_to_idx or o_node not in _self.node_id_to_idx:
                         continue
                     adjacency[o_node].append((i_node, w))
 
-                # (3) Processar os nós (ocultos + saída) na ordem topológica
-                #     ignorando os nós de entrada (já preenchidos).
-                #     Lembrando que node_order contém: 
-                #       [input_nodes ... hidden_nodes ... output_nodes]
-                #     Portanto, começamos de _self.num_inputs até o fim:
+                # (3) Calcula saída dos nós (exceto entrada) na ordem topológica
                 for node_id in _self.node_order[_self.num_inputs:]:
                     node_idx = _self.node_id_to_idx[node_id]
-                    # Soma ponderada das ativações dos nós de origem
                     total_in = torch.zeros(batch_size, device=x.device)
                     for (src_id, w) in adjacency[node_id]:
                         src_idx = _self.node_id_to_idx[src_id]
                         total_in += activations[:, src_idx] * w
-
-                    # Exemplo de ativação interna: Softmax por nó (não usual, mas demonstrativo).
-                    # Se preferir ReLU: node_out = F.relu(total_in)
+                    
+                    # Exemplo: softmax por nó (não é comum, mas você pediu):
                     node_out = F.softmax(total_in, dim=0)
                     activations[:, node_idx] = node_out
 
-                # (4) Extrair as saídas. Em vez de assumir IDs 400..409 ou algo do gênero,
-                #     usamos os node_ids de output_nodes que a própria rede NEAT criou.
+                # (4) Extrai as saídas (na ordem do net.output_nodes do NEAT)
                 outs = []
                 for node_id in _self.output_nodes:
                     out_idx = _self.node_id_to_idx[node_id]
                     outs.append(activations[:, out_idx])
 
-                # Retorna as saídas empilhadas => shape [batch_size, num_outputs]
+                # Retorna shape [batch_size, num_outputs]
                 return torch.stack(outs, dim=1)
 
-        # Retornamos uma instância do NeatModule, passando as listas obtidas
-        return NeatModule(self.genome, self.config, topo_order, in_nodes, out_nodes)
+        return NeatModule(genome, config, topo_order, in_nodes, out_nodes)
 
 
 def eval_genomes(genomes, config, X_train, y_train):
     """
-    Função de avaliação que o NEAT chama em cada geração.
-    Recebe:
-      - genomes: lista de (genome_id, neat_genome_obj)
-      - config: objeto de configuração do NEAT
-      - X_train, y_train: dados de treino (Numpy arrays)
-
-    Cria um módulo PyTorch a partir de cada genome e mede a performance (fitness).
+    Função de avaliação que o NEAT chama em cada geração,
+    definindo genome.fitness para cada genome.
+    Usamos uma métrica que retorna 1 se a rede é perfeita,
+    e 0 se a rede for equivalente a chute aleatório.
     """
 
-    # Converte X e y para tensores no device (GPU se disponível)
-    X_train_torch = torch.tensor(X_train, dtype=torch.float, device='cuda')
-    y_train_torch = torch.tensor(y_train, dtype=torch.long, device='cuda')
+    # Converte dados para tensores no device
+    device = "cuda"
+    X_train_torch = torch.tensor(X_train, dtype=torch.float, device=device)
+    y_train_torch = torch.tensor(y_train, dtype=torch.long, device=device)
+
+    # Número de classes
+    num_classes = config.genome_config.num_outputs
 
     for genome_id, genome in genomes:
-        # Cria nossa classe "Genome" que sabe montar uma rede PyTorch
-        _genome = Genome(genome, config)
+        # Monta a rede PyTorch a partir do genome
+        neat_net = Genome(genome, config)
+        net = neat_net.decode_genome_to_torch().to(device)
 
-        # Constrói a rede PyTorch (nn.Module)
-        net = _genome.decode_genome_to_torch().to("cuda")
+        # Forward pass no dataset (cuidado com memória para datasets grandes)
+        outputs = net(X_train_torch)  # [batch_size, num_classes], já "softmaxado" por nó
 
-        # Forward pass em todo o dataset (cuidado com memória se for grande)
-        outputs = net(X_train_torch)  # shape [batch_size, num_outputs]
+        # p_correct[i] = probabilidade que a rede atribui para a classe correta
+        # Adicionamos um epsilon para evitar log(0)
+        eps = 1e-12
+        p_correct = outputs[range(len(y_train_torch)), y_train_torch] + eps
 
-        # Exemplo de perda: cross-entropy (usando log_softmax manual)
-        # Se preferir, pode usar F.cross_entropy(outputs, y_train_torch) diretamente
-        log_probs = F.log_softmax(outputs, dim=1)
-        loss = -log_probs[range(len(y_train_torch)), y_train_torch].mean()
+        # mean_ll = média do log dessas probabilidades
+        log_p_correct = torch.log(p_correct)
+        mean_ll = log_p_correct.mean().item()
 
-        # O NEAT maximiza o fitness, então definimos fitness = -loss
-        # (quanto menor a perda, maior o fitness)
-        genome.fitness = float(-loss.detach().cpu().numpy())
+        # score = normaliza entre 0 e 1 (0 ~ chute aleatório, 1 ~ perfeito)
+        # Se rede for perfeita => log(1)=0 => mean_ll=0 => score=1
+        # Se rede for aleatória => log(1/k)=-log(k) => mean_ll=-log(k) => score=0
+        raw_score = 1.0 + (mean_ll / math.log(num_classes))
+        final_score = max(0.0, min(1.0, raw_score))
+
+        # Atribui o fitness = final_score
+        genome.fitness = final_score
