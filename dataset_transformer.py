@@ -6,6 +6,10 @@ from dataset_manager import path
 input_folder = path
 images_dir = path + "_resized"
 
+if os.path.exists(images_dir):
+    print(f"O diretório {images_dir} já existe. Pulando a criação de diretórios e redimensionamento.")
+    exit()
+    
 os.makedirs(images_dir, exist_ok=True)  # Garante que a pasta principal existe
 
 for dir in os.listdir(input_folder):
