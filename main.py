@@ -1,4 +1,5 @@
-from NEAT import *
+from NEAT import softmax, evaluate
+import numpy as np
 from dataset_transformer import images_dir
 from dataset_manager import load_images_from_folder
 
@@ -9,6 +10,7 @@ from tensorneat.algorithm import NEAT
 from tensorneat.genome import DefaultGenome, DefaultMutation, DefaultCrossover, DefaultDistance, DefaultConn
 from tensorneat.common import ACT, AGG
 from tensorneat.genome.gene.node.bias import BiasNode
+from tensorneat.problem.func_fit import CustomFuncFit
 
 import pickle
 
@@ -29,9 +31,6 @@ y_data = np.eye(10)[y_data]
 X_train, X_test, y_train, y_test = train_test_split(X_data, y_data, test_size=0.3, random_state=42)
 print(f"Treino: {len(X_train)} amostras | Teste: {len(X_test)} amostras")
 
-# Criar problema de aprendizado supervisionado
-supervised_problem = CustomSupervisedFuncFit(X_train, y_train, batch_size=32)
-
 # Configura a arquitetura da rede neural
 genome = DefaultGenome(
     num_inputs=20*20,  # Número de pixels da imagem (entrada)
@@ -50,6 +49,14 @@ genome = DefaultGenome(
     output_transform=softmax,  # Softmax na saída para classificação multiclasse
 )
 
+custom_problem = CustomFuncFit(
+    func=evaluate,
+    low_bounds=[0] * 400,   # Imagens normalizadas entre [0,1]
+    upper_bounds=[1] * 400,
+    method="sample",
+    num_samples= X_train.shape[0]  # Quantidade de amostras usadas por geração
+)
+
 # Configura o algoritmo NEAT
 algorithm = NEAT(
     pop_size=200,  # Tamanho da população
@@ -61,7 +68,7 @@ algorithm = NEAT(
 # Configurar e rodar o pipeline NEAT
 pipeline = Pipeline(
     algorithm=algorithm,
-    problem=supervised_problem,
+    problem=custom_problem,
     generation_limit=50,
     fitness_target=-0.01,
     seed=42,
@@ -73,9 +80,12 @@ state = pipeline.setup()
 # Executar evolução
 state, best = pipeline.auto_run(state)
 
+pipeline.show(state, best)
+
 # Testar a melhor rede neural no conjunto de teste
-best_network = best.make_network()
-test_predictions = np.array([best_network(x) for x in X_test])
+network = algorithm.genome.network_dict(state, *best)
+algorithm.genome.visualize(network, save_path="./imgs/network.svg")
+#test_predictions = np.array([best_network(x) for x in X_test])
 
 # Calcular acurácia
 test_accuracy = np.mean(np.argmax(test_predictions, axis=1) == np.argmax(y_test, axis=1))
