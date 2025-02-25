@@ -230,13 +230,15 @@ class Genome:
 
                 if debug:
                     print(f"\n[NeatModule] logits: {logits}")
-
+                
                 # Por fim, (se quisermos) F.softmax:
-                preds = F.softmax(logits, dim=1)
+                #preds = F.softmax(logits, dim=1)
 
-                if debug:
-                    print(f"\n[NeatModule] preds (Valor retornado pela função forward): {preds}")
-                return preds
+                #if debug:
+                #    print(f"\n[NeatModule] preds (Valor retornado pela função forward): {preds}")
+                #return preds
+
+                return logits
 
         ret = NeatModule(genome, config, topo_order, in_nodes, out_nodes)
 
@@ -257,67 +259,37 @@ class Genome:
 
 gen = -1
 
-def eval_genomes(genomes, config, X_train, y_train, debug = False):
+def eval_genomes(genomes, config, X_train, y_train, debug=False):
     global gen
-    """
-    Função de avaliação que o NEAT chama em cada geração,
-    definindo genome.fitness para cada genome.
-    Usamos uma métrica que retorna 1 se a rede é perfeita,
-    e 0 se a rede for equivalente a chute aleatório.
-    """
-
-    # Converte dados para tensores no device
-    device = "cuda"
+    
+    # Converte os dados para tensores no device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     X_train_torch = torch.tensor(X_train, dtype=torch.float, device=device)
     y_train_torch = torch.tensor(y_train, dtype=torch.long, device=device)
     
     # Se os rótulos estão one-hot, converte para índices de classe
     if y_train_torch.ndim > 1 and y_train_torch.shape[1] > 1:
         y_train_torch = torch.argmax(y_train_torch, dim=1)
-
-    # Número de classes
-    num_classes = config.genome_config.num_outputs
-
+    
     gen += 1
+    loss_fn = nn.CrossEntropyLoss()
+    
     for genome_id, genome in genomes:
-        #print(f"Genome {genome_id}: "
-        #  f"num_enabled_connections={sum(cg.enabled for cg in genome.connections.values())} "
-        #  f" num_nodes={len(genome.nodes)}")
-        
-        #for ckey, cgene in genome.connections.items():
-        #    if cgene.enabled:
-        #        print(f"   conn {ckey} weight={cgene.weight:.3f}")
-        
-        #for node_id, ngene in genome.nodes.items():
-        #    print(f"   node {node_id} bias={ngene.bias:.3f}")
-        
-        # Monta a rede PyTorch a partir do genome
+        # Cria a rede PyTorch a partir do genome
         neat_net = Genome(genome, config)
         net = neat_net.decode_genome_to_torch().to(device)
-
-        # Forward pass no dataset (cuidado com memória para datasets grandes)
-        outputs = net(X_train_torch)  # [batch_size, num_classes], já "softmaxado" por nó
-
-        # p_correct[i] = probabilidade que a rede atribui para a classe correta
-        # Adicionamos um epsilon para evitar log(0)
-        eps = 1e-12
-        p_correct = outputs[range(len(y_train_torch)), y_train_torch] + eps
-
-        # mean_ll = média do log dessas probabilidades
-        log_p_correct = torch.log(p_correct)
-        mean_ll = log_p_correct.mean().item()
-
-        # score = normaliza entre 0 e 1 (0 ~ chute aleatório, 1 ~ perfeito)
-        # Se rede for perfeita => log(1)=0 => mean_ll=0 => score=1
-        # Se rede for aleatória => log(1/k)=-log(k) => mean_ll=-log(k) => score=0
-        raw_score = 1.0 + (mean_ll / math.log(num_classes))
-        final_score = 1 - (1/(1 + math.e**raw_score))
-
-        # Debug prints for intermediate values
-
-        if debug:
-            print(f"[DEBUG] Genome ID={genome_id}: mean_ll={mean_ll:.5f}, raw_score(before clamp)={raw_score:.5f}")
-            print(f"[DEBUG] gen: {gen} - Genome ID={genome_id} -> fitness={final_score:.5f}")
         
-        # Atribui o fitness = final_score
-        genome.fitness = final_score
+        # Forward pass no dataset
+        outputs = net(X_train_torch)  # Logits
+        
+        # Calcula a Cross-Entropy Loss
+        loss = loss_fn(outputs, y_train_torch)
+        
+        # Calcula a fitness como uma função inversa da loss
+        fitness = 1 / (1 + loss.item())
+        
+        if debug:
+            print(f"[DEBUG] Gen: {gen} - Genome ID={genome_id} -> Loss={loss.item():.5f}, Fitness={fitness:.5f}")
+        
+        # Atribui a fitness ao genome
+        genome.fitness = fitness
