@@ -69,11 +69,12 @@ def main():
     # 4) Run NEAT. We pass a function that takes (genomes, config),
     #    but we also want X_train, y_train inside it. 
     #    A quick trick is to use a lambda or partial:
-    n_generations = 50
-    winner = pop.run(lambda g, c: eval_genomes(g, c, X_train, y_train), n_generations)
-    
-    print("\nDone! Best genome is:", winner)
-    
+    n_generations = 150
+    def eval_genomes_with_data(genomes, config):
+        eval_genomes(genomes, config, X_train, y_train)
+
+    winner = pop.run(eval_genomes_with_data, n_generations)
+        
     # Optionally, evaluate winner on test set
     #-----------------------------------
     device = "cuda" if torch.cuda.is_available() else "cpu"
