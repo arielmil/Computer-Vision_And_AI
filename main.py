@@ -4,6 +4,7 @@ from sklearn.model_selection import train_test_split
 import pickle
 import torch
 import neat
+from network_renderizer import draw_neural_net
 
 # Suppose these are local modules in your project
 from dataset_transformer import images_dir
@@ -11,6 +12,10 @@ from dataset_manager import load_images_from_folder
 
 # Import the custom NEAT code
 from NEAT import eval_genomes, Genome
+
+from network_renderizer import draw_neural_net
+
+
 
 def main():
     # 1) Load data
@@ -69,7 +74,7 @@ def main():
     # 4) Run NEAT. We pass a function that takes (genomes, config),
     #    but we also want X_train, y_train inside it. 
     #    A quick trick is to use a lambda or partial:
-    n_generations = 150
+    n_generations = 500
     def eval_genomes_with_data(genomes, config):
         eval_genomes(genomes, config, X_train, y_train)
 
@@ -99,6 +104,9 @@ def main():
     with open("best_neat_genome.pkl", "wb") as f:
         pickle.dump(winner, f)
     print("Saved best genome to 'best_neat_genome.pkl'")
+
+    # 6) Draw the neural network
+    draw_neural_net(winner, config, "winner_topology")
 
 if __name__ == "__main__":
     main()
