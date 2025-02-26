@@ -13,8 +13,6 @@ from dataset_manager import load_images_from_folder
 # Import the custom NEAT code
 from NEAT import eval_genomes, Genome
 
-from network_renderizer import draw_neural_net
-
 
 
 def main():
