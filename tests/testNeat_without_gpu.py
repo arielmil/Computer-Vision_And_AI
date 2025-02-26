@@ -78,10 +78,6 @@ def run_neat(config_path, X_train, y_train, generations=50, debug=False, with_gp
     return winner
 
 def main():
-    # Para usar no draw_neural_net
-    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                         neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
-    
     X_data, y_data = [], []
     for X_part, y_part in load_images_from_folder(images_dir, everything_at_once=False):
         X_data.append(X_part)
@@ -105,23 +101,12 @@ def main():
         os.chdir(NEAT_ALGORITHMS_DIR)
     config_path = "config-feedforward.ini"
 
-    start_time = time.time()
+    # Para usar no draw_neural_net
+    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                         neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
     
-    winner = run_neat(config_path, X_train, y_train, generations=5, debug=False)
+    os.chdir("tests")
     
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    hours, rem = divmod(elapsed_time, 3600)
-    minutes, seconds = divmod(rem, 60)
-    milliseconds = (seconds - int(seconds)) * 1000
-    print(f"Tempo total: (Sem GPU) {int(hours):02}:{int(minutes):02}:{int(seconds):02}:{int(milliseconds):03}")
-
-    with open("best_neat_genome_test_cpu.pkl", "wb") as f:
-        pickle.dump(winner, f)
-    print("Saved best genome to 'best_neat_genome_test_cpu.pkl'")
-
-    draw_neural_net(winner, config , "winner_topology")
-
     start_time = time.time()
     
     winner = run_neat(config_path, X_train, y_train, generations=5, debug=False, with_gpu = True)
@@ -137,7 +122,24 @@ def main():
         pickle.dump(winner, f)
     print("Saved best genome to 'best_neat_genome_test_gpu.pkl'")
 
-    draw_neural_net(winner, config , "winner_topology")
+    draw_neural_net(winner, config , "winner_topology_gpu")
+
+    start_time = time.time()
+    
+    winner = run_neat(config_path, X_train, y_train, generations=5, debug=False)
+    
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    hours, rem = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(rem, 60)
+    milliseconds = (seconds - int(seconds)) * 1000
+    print(f"Tempo total: (Sem GPU) {int(hours):02}:{int(minutes):02}:{int(seconds):02}:{int(milliseconds):03}")
+
+    with open("best_neat_genome_test_cpu.pkl", "wb") as f:
+        pickle.dump(winner, f)
+    print("Saved best genome to 'best_neat_genome_test_cpu.pkl'")
+
+    draw_neural_net(winner, config , "winner_topology_cpu")
 
 if __name__ == "__main__":
     main()
