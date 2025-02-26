@@ -101,15 +101,17 @@ def main():
         os.chdir(NEAT_ALGORITHMS_DIR)
     config_path = "config-feedforward.ini"
 
+    abs_config_path = os.path.join(NEAT_ALGORITHMS_DIR, config_path)
+    
     # Para usar no draw_neural_net
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                         neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
+                         neat.DefaultSpeciesSet, neat.DefaultStagnation, abs_config_path)
     
     os.chdir("tests")
     
     start_time = time.time()
     
-    winner = run_neat(config_path, X_train, y_train, generations=5, debug=False, with_gpu = True)
+    winner = run_neat(abs_config_path, X_train, y_train, generations=5, debug=False, with_gpu = True)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
@@ -126,7 +128,7 @@ def main():
 
     start_time = time.time()
     
-    winner = run_neat(config_path, X_train, y_train, generations=5, debug=False)
+    winner = run_neat(abs_config_path, X_train, y_train, generations=5, debug=False)
     
     end_time = time.time()
     elapsed_time = end_time - start_time
