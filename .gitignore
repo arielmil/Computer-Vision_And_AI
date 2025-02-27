@@ -1,7 +1,0 @@
-__pycache__/
-output_teste_neat_cpu_vs_gpu
-tensorflow/
-tensorneat/
-.gitignore
-.keras
-.h5
