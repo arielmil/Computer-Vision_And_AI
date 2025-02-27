@@ -1,4 +1,4 @@
 __pycache__
 tensorneat/
-.h5
-.keras
+*.h5
+*.keras
