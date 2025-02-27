@@ -1,0 +1,14 @@
+[
+  {
+    "generation": 0,
+    "best_fitness": null,
+    "timestamp": "2025-02-23T21:35:31.185570",
+    "species_stats": {
+      "num_species": 0
+    },
+    "population_stats": {
+      "population_size": 0,
+      "avg_genome_size": 0
+    }
+  }
+]
