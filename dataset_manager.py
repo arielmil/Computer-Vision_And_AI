@@ -10,7 +10,7 @@ if not os.path.exists(path):
     path = kagglehub.dataset_download("olafkrastovski/handwritten-digits-0-9")
     print("Downloaded dataset to", path)
 
-def load_images_from_folder(folder_path, everything_at_once=False):
+def load_images_from_folder(folder_path, everything_at_once=False, flatten=True):
     """
     Carrega imagens do dataset em batches para evitar consumo excessivo de memória.
     """
@@ -32,7 +32,10 @@ def load_images_from_folder(folder_path, everything_at_once=False):
                     continue
 
                 # Normaliza e converte o array para float32
-                img = (img.astype(np.float32) / 255.0).flatten()
+                img = (img.astype(np.float32) / 255.0)
+
+                if flatten:
+                    img = img.flatten()
 
                 data.append(img)
                 labels.append(int(label))

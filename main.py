@@ -5,6 +5,7 @@ import pickle
 import torch
 import neat
 from network_renderizer import draw_neural_net
+from torch.nn.functional import softmax
 
 # Suppose these are local modules in your project
 from dataset_transformer import images_dir
@@ -76,7 +77,7 @@ def main():
     def eval_genomes_with_data(genomes, config):
         eval_genomes(genomes, config, X_train, y_train)
 
-    winner = pop.run(eval_genomes_with_data, n_generations)
+    winner = pop.run(eval_genomes_with_data)
         
     # Optionally, evaluate winner on test set
     #-----------------------------------
@@ -94,7 +95,10 @@ def main():
 
     # Forward pass
     outputs = best_genome_torch(X_test_torch)  # shape [N, 10], presumably
-    preds = outputs.argmax(dim=1).detach().cpu().numpy()
+    probs = softmax(outputs, dim=1)  # ← Agora cada linha soma 1
+
+    
+    preds = probs.argmax(dim=1).detach().cpu().numpy()
     accuracy = np.mean(preds == y_test_indices)
     print(f"Accuracy on test set: {accuracy*100:.2f}%")
 
